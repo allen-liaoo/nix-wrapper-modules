@@ -12,7 +12,11 @@ let
     typeName = "TOML";
   };
   isPathLike =
-    x: builtins.isPath x || (builtins.isString x && lib.hasPrefix "/" x) || lib.isStorePath x;
+    x:
+    builtins.isPath x
+    || (lib.isStringLike x && !builtins.isString x)
+    || (builtins.isString x && lib.hasPrefix "/" x)
+    || lib.isStorePath x;
 in
 {
   imports = [ wlib.modules.default ];
@@ -23,7 +27,7 @@ in
       description = "Television configuration options.";
     };
     channels = lib.mkOption {
-      type = types.lazyAttrsOf (types.either types.path tomlFmtType);
+      type = types.lazyAttrsOf (types.either wlib.types.stringable tomlFmtType);
       default = { };
       description = "Television channels to install.";
     };
@@ -36,7 +40,7 @@ in
       '';
     };
     themes = lib.mkOption {
-      type = types.lazyAttrsOf (types.either types.path tomlFmtType);
+      type = types.lazyAttrsOf (types.either wlib.types.stringable tomlFmtType);
       default = { };
       description = "Themes of television to install.";
     };
@@ -58,6 +62,12 @@ in
   };
   config = {
     package = lib.mkDefault pkgs.television;
+    passthru.generatedThemesDir = "${
+      config.wrapper.${config.configDrvOutput}
+    }/${baseNameOf config.themesDir}";
+    passthru.generatedChannelsDir = "${
+      config.wrapper.${config.configDrvOutput}
+    }/${baseNameOf config.channelsDir}";
     flags = {
       "--config-file" = lib.mkIf (config.settings != { }) config.constructFiles.generatedConfig.path;
       "--cable-dir" = lib.mkIf (config.channels != { }) config.channelsDir;
@@ -76,7 +86,7 @@ in
       output = lib.mkOverride 0 config.configDrvOutput;
       ${if isPathLike v then null else "content"} = builtins.toJSON v;
       "builder" =
-        if isPathLike v then ''cp ${v} "$2"'' else ''${pkgs.remarshal}/bin/json2toml "$1" "$2"'';
+        if isPathLike v then ''ln -s ${v} "$2"'' else ''${pkgs.remarshal}/bin/json2toml "$1" "$2"'';
     }) config.channels
     // builtins.mapAttrs (n: v: {
       key = "theme_${n}";
@@ -84,7 +94,7 @@ in
       output = lib.mkOverride 0 config.configDrvOutput;
       ${if isPathLike v then null else "content"} = builtins.toJSON v;
       "builder" =
-        if isPathLike v then ''cp ${v} "$2"'' else ''${pkgs.remarshal}/bin/json2toml "$1" "$2"'';
+        if isPathLike v then ''ln -s ${v} "$2"'' else ''${pkgs.remarshal}/bin/json2toml "$1" "$2"'';
     }) config.themes;
     meta.maintainers = [ wlib.maintainers.allen-liaoo ];
   };
